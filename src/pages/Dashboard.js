@@ -8,10 +8,9 @@ import {
   BarElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
 } from 'chart.js';
 
-// Register Chart.js components
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -22,50 +21,23 @@ ChartJS.register(
 );
 
 function Dashboard() {
-  const { currentUser, getUserActivities } = useAuth();
-  const activities = getUserActivities();
+  const { getTodayEmissions, getWeeklyAverage, getWeeklyData } = useAuth();
 
-  // Calculate today's emissions
-  const today = new Date().toDateString();
-  const todayActivities = activities.filter(
-    activity => new Date(activity.date).toDateString() === today
-  );
-  const todayEmissions = todayActivities.reduce((sum, activity) => sum + activity.co2, 0);
+  const todayEmissions = getTodayEmissions();
+  const weeklyAverage = getWeeklyAverage();
+  const weeklyData = getWeeklyData();
 
-  // Calculate weekly average (last 7 days)
-  const last7Days = [];
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date();
-    date.setDate(date.getDate() - i);
-    last7Days.push(date.toDateString());
-  }
-
-  const weeklyData = last7Days.map(dateStr => {
-    const dayActivities = activities.filter(
-      activity => new Date(activity.date).toDateString() === dateStr
-    );
-    return dayActivities.reduce((sum, activity) => sum + activity.co2, 0);
-  });
-
-  const weeklyAverage = weeklyData.length > 0 
-    ? (weeklyData.reduce((sum, val) => sum + val, 0) / weeklyData.length).toFixed(1)
-    : 0;
-
-  // Chart data
   const chartData = {
-    labels: last7Days.map(dateStr => {
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('en-US', { weekday: 'short' });
-    }),
+    labels: weeklyData.map(d => d.day),
     datasets: [
       {
-        label: 'Daily Emissions (kg CO₂)',
-        data: weeklyData,
+        label: 'CO₂ Emissions (kg)',
+        data: weeklyData.map(d => d.emissions),
         backgroundColor: 'rgba(16, 185, 129, 0.8)',
         borderColor: 'rgba(16, 185, 129, 1)',
-        borderWidth: 1,
-      }
-    ]
+        borderWidth: 2,
+      },
+    ],
   };
 
   const chartOptions = {
@@ -73,109 +45,108 @@ function Dashboard() {
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        display: false
+        display: false,
       },
       title: {
         display: true,
         text: 'Weekly Emissions Breakdown',
+        color: document.documentElement.classList.contains('dark') ? '#fff' : '#1f2937',
         font: {
           size: 16,
-          weight: 'bold'
-        }
-      }
+          weight: 'bold',
+        },
+      },
     },
     scales: {
       y: {
         beginAtZero: true,
         ticks: {
-          callback: function(value) {
-            return value + ' kg';
-          }
-        }
-      }
-    }
+          color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#4b5563',
+        },
+        grid: {
+          color: document.documentElement.classList.contains('dark') ? '#374151' : '#e5e7eb',
+        },
+      },
+      x: {
+        ticks: {
+          color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#4b5563',
+        },
+        grid: {
+          color: document.documentElement.classList.contains('dark') ? '#374151' : '#e5e7eb',
+        },
+      },
+    },
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Welcome Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">
-            Welcome back, {currentUser?.name}! 👋
-          </h1>
-          <p className="text-gray-600 mt-2">Here's your carbon footprint overview</p>
-        </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
+          Dashboard
+        </h1>
 
-        {/* Stat Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          {/* Today's Emissions */}
-          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-green-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">Today's Emissions</p>
-                <p className="text-4xl font-bold text-gray-800 mt-2">
-                  {todayEmissions.toFixed(1)}
-                  <span className="text-xl text-gray-600 ml-2">kg CO₂</span>
-                </p>
-              </div>
-              <div className="bg-green-100 p-4 rounded-full">
-                <span className="text-3xl">🌍</span>
-              </div>
-            </div>
-            <p className="text-sm text-gray-500 mt-4">
-              {todayActivities.length} {todayActivities.length === 1 ? 'activity' : 'activities'} recorded today
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border-l-4 border-green-500 transition-colors duration-200">
+            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Today's Emissions
+            </h3>
+            <p className="text-4xl font-bold text-green-600 dark:text-green-400">
+              {todayEmissions.toFixed(1)} kg
             </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">CO₂ emitted today</p>
           </div>
 
-          {/* Weekly Average */}
-          <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-blue-500">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-gray-600 text-sm font-medium">Weekly Average</p>
-                <p className="text-4xl font-bold text-gray-800 mt-2">
-                  {weeklyAverage}
-                  <span className="text-xl text-gray-600 ml-2">kg/day</span>
-                </p>
-              </div>
-              <div className="bg-blue-100 p-4 rounded-full">
-                <span className="text-3xl">📊</span>
-              </div>
-            </div>
-            <p className="text-sm text-gray-500 mt-4">
-              Last 7 days average emissions
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 border-l-4 border-blue-500 transition-colors duration-200">
+            <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Weekly Average
+            </h3>
+            <p className="text-4xl font-bold text-blue-600 dark:text-blue-400">
+              {weeklyAverage.toFixed(1)} kg
             </p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">per day</p>
           </div>
         </div>
 
-        {/* Chart Section */}
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <div style={{ height: '300px' }}>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 transition-colors duration-200">
+          <div className="h-80">
             <Bar data={chartData} options={chartOptions} />
           </div>
         </div>
 
-        {/* Quick Stats */}
-        <div className="mt-8 bg-gradient-to-r from-green-50 to-blue-50 rounded-xl p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Quick Stats</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white rounded-lg p-4 shadow-sm">
-              <p className="text-gray-600 text-sm">Total Activities</p>
-              <p className="text-2xl font-bold text-gray-800 mt-1">{activities.length}</p>
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm opacity-90">Total Activities</p>
+                <p className="text-3xl font-bold mt-2">
+                  {weeklyData.reduce((sum, d) => sum + d.count, 0)}
+                </p>
+              </div>
+              <div className="text-4xl opacity-80">📊</div>
             </div>
-            <div className="bg-white rounded-lg p-4 shadow-sm">
-              <p className="text-gray-600 text-sm">This Week's Total</p>
-              <p className="text-2xl font-bold text-gray-800 mt-1">
-                {weeklyData.reduce((sum, val) => sum + val, 0).toFixed(1)} kg
-              </p>
+          </div>
+
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm opacity-90">Active Days</p>
+                <p className="text-3xl font-bold mt-2">
+                  {weeklyData.filter(d => d.count > 0).length}
+                </p>
+              </div>
+              <div className="text-4xl opacity-80">📅</div>
             </div>
-            <div className="bg-white rounded-lg p-4 shadow-sm">
-              <p className="text-gray-600 text-sm">Average per Activity</p>
-              <p className="text-2xl font-bold text-gray-800 mt-1">
-                {activities.length > 0 
-                  ? (activities.reduce((sum, a) => sum + a.co2, 0) / activities.length).toFixed(1)
-                  : 0} kg
-              </p>
+          </div>
+
+          <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm opacity-90">Weekly Total</p>
+                <p className="text-3xl font-bold mt-2">
+                  {weeklyData.reduce((sum, d) => sum + d.emissions, 0).toFixed(1)} kg
+                </p>
+              </div>
+              <div className="text-4xl opacity-80">🌍</div>
             </div>
           </div>
         </div>
