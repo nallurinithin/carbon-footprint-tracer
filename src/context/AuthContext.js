@@ -2,39 +2,24 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext();
 
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
-  }
-  return context;
-};
+export function useAuth() {
+  return useContext(AuthContext);
+}
 
-export const AuthProvider = ({ children }) => {
-  // Initialize state from localStorage
-  const [currentUser, setCurrentUser] = useState(() => {
-    const savedUser = localStorage.getItem('currentUser');
-    return savedUser ? JSON.parse(savedUser) : null;
-  });
-
+export function AuthProvider({ children }) {
   const [users, setUsers] = useState(() => {
     const savedUsers = localStorage.getItem('users');
     return savedUsers ? JSON.parse(savedUsers) : [];
   });
 
-  const [activities, setActivities] = useState(() => {
-    const savedActivities = localStorage.getItem('activities');
-    return savedActivities ? JSON.parse(savedActivities) : {};
+  const [currentUser, setCurrentUser] = useState(() => {
+    const savedUser = localStorage.getItem('currentUser');
+    return savedUser ? JSON.parse(savedUser) : null;
   });
 
-  // Save to localStorage whenever state changes
   useEffect(() => {
     localStorage.setItem('users', JSON.stringify(users));
   }, [users]);
-
-  useEffect(() => {
-    localStorage.setItem('activities', JSON.stringify(activities));
-  }, [activities]);
 
   useEffect(() => {
     if (currentUser) {
@@ -45,9 +30,9 @@ export const AuthProvider = ({ children }) => {
   }, [currentUser]);
 
   const signup = (name, email, password) => {
-    // Check if user already exists
-    if (users.find(u => u.email === email)) {
-      return { success: false, message: 'Email already exists' };
+    const existingUser = users.find(u => u.email === email);
+    if (existingUser) {
+      throw new Error('User already exists');
     }
 
     const newUser = {
@@ -55,26 +40,24 @@ export const AuthProvider = ({ children }) => {
       name,
       email,
       password,
+      activities: [],
       createdAt: new Date().toISOString()
     };
 
     setUsers([...users, newUser]);
-    return { success: true, message: 'Signup successful!' };
+    return newUser;
   };
 
   const login = (email, password) => {
     const user = users.find(u => u.email === email);
-    
     if (!user) {
-      return { success: false, message: "User doesn't exist. Please signup first." };
+      throw new Error('User not found');
     }
-
     if (user.password !== password) {
-      return { success: false, message: 'Incorrect password' };
+      throw new Error('Invalid password');
     }
-
     setCurrentUser(user);
-    return { success: true };
+    return user;
   };
 
   const logout = () => {
@@ -87,105 +70,159 @@ export const AuthProvider = ({ children }) => {
 
     const newActivity = {
       id: Date.now().toString(),
-      userId: currentUser.id,
       ...activityData,
       date: new Date().toISOString(),
-      timestamp: Date.now()
+      userId: currentUser.id
     };
 
-    setActivities(prev => ({
-      ...prev,
-      [currentUser.id]: [...(prev[currentUser.id] || []), newActivity]
-    }));
+    const updatedUsers = users.map(user => {
+      if (user.id === currentUser.id) {
+        return {
+          ...user,
+          activities: [...(user.activities || []), newActivity]
+        };
+      }
+      return user;
+    });
+
+    setUsers(updatedUsers);
+    
+    const updatedCurrentUser = updatedUsers.find(u => u.id === currentUser.id);
+    setCurrentUser(updatedCurrentUser);
   };
 
   const getUserActivities = () => {
     if (!currentUser) return [];
-    return activities[currentUser.id] || [];
-  };
-
-  const getTodayActivities = () => {
-    const userActivities = getUserActivities();
-    const today = new Date().toDateString();
-    return userActivities.filter(activity => {
-      const activityDate = new Date(activity.date).toDateString();
-      return activityDate === today;
-    });
+    const user = users.find(u => u.id === currentUser.id);
+    return user?.activities || [];
   };
 
   const getTodayEmissions = () => {
-    const todayActivities = getTodayActivities();
+    const activities = getUserActivities();
+    const today = new Date().toDateString();
+    
+    const todayActivities = activities.filter(activity => {
+      const activityDate = new Date(activity.date).toDateString();
+      return activityDate === today;
+    });
+
     return todayActivities.reduce((total, activity) => {
-      return total + (activity.co2 || 0);
+      return total + (parseFloat(activity.co2) || 0);
     }, 0);
   };
 
   const getWeeklyAverage = () => {
-    const userActivities = getUserActivities();
-    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-    
-    const weekActivities = userActivities.filter(activity => 
-      activity.timestamp >= sevenDaysAgo
-    );
+    const activities = getUserActivities();
+    if (activities.length === 0) return 0;
+
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const weekActivities = activities.filter(activity => {
+      const activityDate = new Date(activity.date);
+      return activityDate >= weekAgo && activityDate <= now;
+    });
 
     if (weekActivities.length === 0) return 0;
 
-    const totalEmissions = weekActivities.reduce((total, activity) => {
-      return total + (activity.co2 || 0);
+    const totalCO2 = weekActivities.reduce((total, activity) => {
+      return total + (parseFloat(activity.co2) || 0);
     }, 0);
 
-    // Get unique days
     const uniqueDays = new Set(
-      weekActivities.map(activity => 
-        new Date(activity.date).toDateString()
-      )
+      weekActivities.map(activity => new Date(activity.date).toDateString())
     );
 
-    return totalEmissions / uniqueDays.size;
+    return totalCO2 / uniqueDays.size;
   };
 
   const getWeeklyData = () => {
-    const userActivities = getUserActivities();
+    const activities = getUserActivities();
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const today = new Date();
-    const weekData = [];
+    const data = [];
 
-    // Get last 7 days
     for (let i = 6; i >= 0; i--) {
-      const date = new Date(today);
+      const date = new Date();
       date.setDate(date.getDate() - i);
-      const dateString = date.toDateString();
-      const dayName = days[date.getDay()];
-
-      const dayActivities = userActivities.filter(activity => {
-        const activityDate = new Date(activity.date).toDateString();
-        return activityDate === dateString;
+      const dateStr = date.toDateString();
+      
+      const dayActivities = activities.filter(activity => {
+        return new Date(activity.date).toDateString() === dateStr;
       });
 
-      const totalEmissions = dayActivities.reduce((total, activity) => {
-        return total + (activity.co2 || 0);
+      const totalCO2 = dayActivities.reduce((total, activity) => {
+        return total + (parseFloat(activity.co2) || 0);
       }, 0);
 
-      weekData.push({
-        day: dayName,
-        emissions: parseFloat(totalEmissions.toFixed(2))
+      data.push({
+        day: days[date.getDay()],
+        emissions: parseFloat(totalCO2.toFixed(2))
       });
     }
 
-    return weekData;
+    return data;
+  };
+
+  // NEW: Activity Analysis Function for Personalized Tips
+  const analyzeUserActivities = () => {
+    const activities = getUserActivities();
+    
+    if (activities.length === 0) {
+      return {
+        hasActivities: false,
+        topCategories: [],
+        categoryBreakdown: {},
+        totalCO2: 0,
+        activityCount: 0
+      };
+    }
+
+    const categoryBreakdown = {};
+    let totalCO2 = 0;
+
+    activities.forEach(activity => {
+      const category = activity.category || 'Other';
+      const co2 = parseFloat(activity.co2) || 0;
+      
+      if (!categoryBreakdown[category]) {
+        categoryBreakdown[category] = 0;
+      }
+      categoryBreakdown[category] += co2;
+      totalCO2 += co2;
+    });
+
+    const sortedCategories = Object.entries(categoryBreakdown)
+      .sort((a, b) => b[1] - a[1])
+      .map(([category, emissions]) => ({
+        category,
+        emissions: parseFloat(emissions.toFixed(2)),
+        percentage: ((emissions / totalCO2) * 100).toFixed(1)
+      }));
+
+    return {
+      hasActivities: true,
+      topCategories: sortedCategories.slice(0, 3).map(c => c.category),
+      categoryBreakdown: Object.fromEntries(
+        sortedCategories.map(c => [c.category, c.emissions])
+      ),
+      totalCO2: parseFloat(totalCO2.toFixed(2)),
+      activityCount: activities.length,
+      sortedCategories
+    };
   };
 
   const value = {
     currentUser,
+    users,
     signup,
     login,
     logout,
     addActivity,
     getUserActivities,
-    getTodayActivities,
     getTodayEmissions,
     getWeeklyAverage,
-    getWeeklyData
+    getWeeklyData,
+    analyzeUserActivities
   };
 
   return (
@@ -193,4 +230,4 @@ export const AuthProvider = ({ children }) => {
       {children}
     </AuthContext.Provider>
   );
-};
+}
