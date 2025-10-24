@@ -1,105 +1,65 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import Navigation from './components/Navigation';
+import { ThemeProvider } from './context/ThemeContext';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import TrackActivity from './pages/TrackActivity';
 import EcoTips from './pages/EcoTips';
+import Navigation from './components/Navigation';
 
-// Protected Route Component
-const ProtectedRoute = ({ children }) => {
+function ProtectedRoute({ children }) {
   const { currentUser } = useAuth();
-  
-  if (!currentUser) {
-    return <Navigate to="/login" replace />;
-  }
-  
-  return (
-    <>
-      <Navigation />
-      {children}
-    </>
-  );
-};
+  return currentUser ? children : <Navigate to="/login" />;
+}
 
-// Public Route Component (for login/signup only)
-const PublicRoute = ({ children }) => {
+function PublicRoute({ children }) {
   const { currentUser } = useAuth();
-  
-  if (currentUser) {
-    return <Navigate to="/dashboard" replace />;
-  }
-  
-  return children;
-};
-
-function AppRoutes() {
-  return (
-    <Routes>
-      {/* Public Routes */}
-      <Route 
-        path="/login" 
-        element={
-          <PublicRoute>
-            <Login />
-          </PublicRoute>
-        } 
-      />
-      <Route 
-        path="/signup" 
-        element={
-          <PublicRoute>
-            <Signup />
-          </PublicRoute>
-        } 
-      />
-
-      {/* Protected Routes */}
-      <Route 
-        path="/dashboard" 
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/track-activity" 
-        element={
-          <ProtectedRoute>
-            <TrackActivity />
-          </ProtectedRoute>
-        } 
-      />
-      <Route 
-        path="/eco-tips" 
-        element={
-          <ProtectedRoute>
-            <EcoTips />
-          </ProtectedRoute>
-        } 
-      />
-
-      {/* Default Route */}
-      <Route path="/" element={<Navigate to="/login" replace />} />
-      
-      {/* 404 Route */}
-      <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
-  );
+  return !currentUser ? children : <Navigate to="/dashboard" />;
 }
 
 function App() {
   return (
-    <Router>
+    <ThemeProvider>
       <AuthProvider>
-        <div className="App">
-          <AppRoutes />
-        </div>
+        <Router>
+          <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+            <Routes>
+              <Route path="/login" element={
+                <PublicRoute>
+                  <Login />
+                </PublicRoute>
+              } />
+              <Route path="/signup" element={
+                <PublicRoute>
+                  <Signup />
+                </PublicRoute>
+              } />
+              <Route path="/dashboard" element={
+                <ProtectedRoute>
+                  <Navigation />
+                  <Dashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/track-activity" element={
+                <ProtectedRoute>
+                  <Navigation />
+                  <TrackActivity />
+                </ProtectedRoute>
+              } />
+              <Route path="/eco-tips" element={
+                <ProtectedRoute>
+                  <Navigation />
+                  <EcoTips />
+                </ProtectedRoute>
+              } />
+              <Route path="/" element={<Navigate to="/login" />} />
+            </Routes>
+          </div>
+        </Router>
       </AuthProvider>
-    </Router>
+    </ThemeProvider>
   );
 }
 
