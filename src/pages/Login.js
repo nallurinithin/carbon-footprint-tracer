@@ -23,16 +23,13 @@ function Login() {
     if (result.success) {
       navigate('/dashboard');
     } else {
-      // Check if user doesn't exist
-      if (result.message === 'Invalid credentials') {
-        setError('User not registered. Please sign up first.');
-        
-        // Auto-redirect to signup after 2 seconds
+      setError(result.message);
+      
+      // If user not found, redirect to signup after 3 seconds
+      if (result.userNotFound) {
         setTimeout(() => {
           navigate('/signup');
-        }, 2000);
-      } else {
-        setError(result.message);
+        }, 3000);
       }
     }
   };
@@ -101,10 +98,10 @@ function Login() {
                   </svg>
                 </div>
                 <div className="ml-3">
-                  <p className="text-sm text-red-800 dark:text-red-400">{error}</p>
+                  <p className="text-sm font-medium text-red-800 dark:text-red-400">{error}</p>
                   {error.includes('not registered') && (
-                    <p className="text-xs text-red-600 dark:text-red-500 mt-1">
-                      Redirecting to signup page...
+                    <p className="text-xs text-red-600 dark:text-red-500 mt-2">
+                      ⏱️ Redirecting to signup page in 3 seconds...
                     </p>
                   )}
                 </div>

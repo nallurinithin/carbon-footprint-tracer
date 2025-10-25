@@ -8,24 +8,43 @@ export function useTheme() {
 
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
+    // Check localStorage first
     const savedTheme = localStorage.getItem('theme');
-    return savedTheme || 'light';
+    if (savedTheme) {
+      return savedTheme;
+    }
+    
+    // Check system preference
+    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
+    }
+    
+    return 'light';
   });
 
   useEffect(() => {
+    // Save to localStorage
     localStorage.setItem('theme', theme);
     
+    // Get the root HTML element
     const root = window.document.documentElement;
     
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+    // Remove both classes first
+    root.classList.remove('light', 'dark');
+    
+    // Add the current theme class
+    root.classList.add(theme);
+    
+    // Also update data attribute for extra compatibility
+    root.setAttribute('data-theme', theme);
+    
   }, [theme]);
 
   const toggleTheme = () => {
-    setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
+    setTheme(prevTheme => {
+      const newTheme = prevTheme === 'light' ? 'dark' : 'light';
+      return newTheme;
+    });
   };
 
   const value = {

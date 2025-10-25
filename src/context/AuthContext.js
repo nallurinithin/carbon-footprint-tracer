@@ -7,14 +7,14 @@ export function useAuth() {
 }
 
 export function AuthProvider({ children }) {
-  const [users, setUsers] = useState(() => {
-    const savedUsers = localStorage.getItem('users');
-    return savedUsers ? JSON.parse(savedUsers) : [];
-  });
-
   const [currentUser, setCurrentUser] = useState(() => {
     const savedUser = localStorage.getItem('currentUser');
     return savedUser ? JSON.parse(savedUser) : null;
+  });
+
+  const [users, setUsers] = useState(() => {
+    const savedUsers = localStorage.getItem('users');
+    return savedUsers ? JSON.parse(savedUsers) : [];
   });
 
   useEffect(() => {
@@ -24,40 +24,52 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('currentUser', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('currentUser');
     }
   }, [currentUser]);
 
   const signup = (name, email, password) => {
     const existingUser = users.find(u => u.email === email);
     if (existingUser) {
-      throw new Error('User already exists');
+      return { success: false, message: 'User already exists with this email' };
     }
 
     const newUser = {
-      id: Date.now().toString(),
       name,
       email,
       password,
       activities: [],
+      badges: [],
       createdAt: new Date().toISOString()
     };
 
     setUsers([...users, newUser]);
-    return newUser;
+    return { success: true, message: 'Signup successful! Redirecting to login...' };
   };
 
   const login = (email, password) => {
-    const user = users.find(u => u.email === email);
-    if (!user) {
-      throw new Error('User not found');
+    // First check if user exists
+    const userExists = users.find(u => u.email === email);
+    
+    if (!userExists) {
+      return { 
+        success: false, 
+        message: 'User not registered. Please sign up first.',
+        userNotFound: true 
+      };
     }
-    if (user.password !== password) {
-      throw new Error('Invalid password');
+
+    // Then check password
+    if (userExists.password !== password) {
+      return { 
+        success: false, 
+        message: 'Incorrect password. Please try again.',
+        userNotFound: false 
+      };
     }
-    setCurrentUser(user);
-    return user;
+
+    // Login successful
+    setCurrentUser(userExists);
+    return { success: true };
   };
 
   const logout = () => {
@@ -65,155 +77,80 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('currentUser');
   };
 
-  const addActivity = (activityData) => {
+  const addActivity = (activity) => {
     if (!currentUser) return;
 
-    const newActivity = {
-      id: Date.now().toString(),
-      ...activityData,
+    const activityWithDate = {
+      ...activity,
       date: new Date().toISOString(),
-      userId: currentUser.id
+      id: Date.now()
     };
 
-    const updatedUsers = users.map(user => {
-      if (user.id === currentUser.id) {
-        return {
-          ...user,
-          activities: [...(user.activities || []), newActivity]
-        };
-      }
-      return user;
-    });
+    const updatedActivities = [...(currentUser.activities || []), activityWithDate];
+    const updatedUser = { ...currentUser, activities: updatedActivities };
 
-    setUsers(updatedUsers);
-    
-    const updatedCurrentUser = updatedUsers.find(u => u.id === currentUser.id);
-    setCurrentUser(updatedCurrentUser);
+    setCurrentUser(updatedUser);
+    setUsers(users.map(u => u.email === currentUser.email ? updatedUser : u));
   };
 
   const getUserActivities = () => {
-    if (!currentUser) return [];
-    const user = users.find(u => u.id === currentUser.id);
-    return user?.activities || [];
+    return currentUser?.activities || [];
   };
 
   const getTodayEmissions = () => {
-    const activities = getUserActivities();
+    if (!currentUser) return 0;
     const today = new Date().toDateString();
-    
-    const todayActivities = activities.filter(activity => {
-      const activityDate = new Date(activity.date).toDateString();
-      return activityDate === today;
-    });
-
-    return todayActivities.reduce((total, activity) => {
-      return total + (parseFloat(activity.co2) || 0);
-    }, 0);
+    const todayActivities = currentUser.activities?.filter(
+      activity => new Date(activity.date).toDateString() === today
+    ) || [];
+    return todayActivities.reduce((sum, activity) => sum + (activity.co2 || 0), 0);
   };
 
   const getWeeklyAverage = () => {
-    const activities = getUserActivities();
-    if (activities.length === 0) return 0;
+    if (!currentUser) return 0;
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const now = new Date();
-    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-
-    const weekActivities = activities.filter(activity => {
-      const activityDate = new Date(activity.date);
-      return activityDate >= weekAgo && activityDate <= now;
-    });
+    const weekActivities = currentUser.activities?.filter(
+      activity => new Date(activity.date) >= sevenDaysAgo
+    ) || [];
 
     if (weekActivities.length === 0) return 0;
 
-    const totalCO2 = weekActivities.reduce((total, activity) => {
-      return total + (parseFloat(activity.co2) || 0);
-    }, 0);
-
+    const totalCO2 = weekActivities.reduce((sum, activity) => sum + (activity.co2 || 0), 0);
     const uniqueDays = new Set(
       weekActivities.map(activity => new Date(activity.date).toDateString())
     );
-
-    return totalCO2 / uniqueDays.size;
+    const activeDays = uniqueDays.size;
+    return activeDays > 0 ? totalCO2 / activeDays : 0;
   };
 
   const getWeeklyData = () => {
-    const activities = getUserActivities();
+    if (!currentUser) return { labels: [], data: [] };
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const data = [];
+    const today = new Date();
+    const last7Days = [];
 
     for (let i = 6; i >= 0; i--) {
-      const date = new Date();
+      const date = new Date(today);
       date.setDate(date.getDate() - i);
-      const dateStr = date.toDateString();
-      
-      const dayActivities = activities.filter(activity => {
-        return new Date(activity.date).toDateString() === dateStr;
-      });
-
-      const totalCO2 = dayActivities.reduce((total, activity) => {
-        return total + (parseFloat(activity.co2) || 0);
-      }, 0);
-
-      data.push({
-        day: days[date.getDay()],
-        emissions: parseFloat(totalCO2.toFixed(2))
-      });
+      last7Days.push(date);
     }
 
-    return data;
-  };
-
-  // NEW: Activity Analysis Function for Personalized Tips
-  const analyzeUserActivities = () => {
-    const activities = getUserActivities();
-    
-    if (activities.length === 0) {
-      return {
-        hasActivities: false,
-        topCategories: [],
-        categoryBreakdown: {},
-        totalCO2: 0,
-        activityCount: 0
-      };
-    }
-
-    const categoryBreakdown = {};
-    let totalCO2 = 0;
-
-    activities.forEach(activity => {
-      const category = activity.category || 'Other';
-      const co2 = parseFloat(activity.co2) || 0;
-      
-      if (!categoryBreakdown[category]) {
-        categoryBreakdown[category] = 0;
-      }
-      categoryBreakdown[category] += co2;
-      totalCO2 += co2;
+    const data = last7Days.map(date => {
+      const dateString = date.toDateString();
+      const dayActivities = currentUser.activities?.filter(
+        activity => new Date(activity.date).toDateString() === dateString
+      ) || [];
+      return dayActivities.reduce((sum, activity) => sum + (activity.co2 || 0), 0);
     });
 
-    const sortedCategories = Object.entries(categoryBreakdown)
-      .sort((a, b) => b[1] - a[1])
-      .map(([category, emissions]) => ({
-        category,
-        emissions: parseFloat(emissions.toFixed(2)),
-        percentage: ((emissions / totalCO2) * 100).toFixed(1)
-      }));
-
-    return {
-      hasActivities: true,
-      topCategories: sortedCategories.slice(0, 3).map(c => c.category),
-      categoryBreakdown: Object.fromEntries(
-        sortedCategories.map(c => [c.category, c.emissions])
-      ),
-      totalCO2: parseFloat(totalCO2.toFixed(2)),
-      activityCount: activities.length,
-      sortedCategories
-    };
+    const labels = last7Days.map(date => days[date.getDay()]);
+    return { labels, data };
   };
 
   const value = {
     currentUser,
-    users,
     signup,
     login,
     logout,
@@ -221,8 +158,7 @@ export function AuthProvider({ children }) {
     getUserActivities,
     getTodayEmissions,
     getWeeklyAverage,
-    getWeeklyData,
-    analyzeUserActivities
+    getWeeklyData
   };
 
   return (

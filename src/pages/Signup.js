@@ -12,6 +12,7 @@ function Signup() {
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [passwordStrength, setPasswordStrength] = useState(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   
   const { signup } = useAuth();
   const navigate = useNavigate();
@@ -107,6 +108,12 @@ function Signup() {
       return;
     }
 
+    // Validate name (at least 2 characters)
+    if (name.trim().length < 2) {
+      setError('Name must be at least 2 characters long');
+      return;
+    }
+
     // Validate email
     if (!validateEmail(email)) {
       setError('Please enter a valid email (format: name@gmail.com)');
@@ -130,10 +137,13 @@ function Signup() {
     const result = signup(name, email, password);
     
     if (result.success) {
-      setSuccess('Signup successful! Redirecting to login...');
+      setSuccess('✅ Signup successful! Redirecting to login page...');
+      setIsRedirecting(true);
+      
+      // Redirect after 3 seconds
       setTimeout(() => {
         navigate('/login');
-      }, 2000);
+      }, 3000);
     } else {
       setError(result.message);
     }
@@ -168,7 +178,8 @@ function Signup() {
                 name="name"
                 type="text"
                 required
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-800 transition-colors duration-200"
+                disabled={isRedirecting}
+                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-800 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="Enter your full name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -185,9 +196,10 @@ function Signup() {
                 name="email"
                 type="email"
                 required
+                disabled={isRedirecting}
                 className={`appearance-none relative block w-full px-3 py-2 border ${
                   emailError ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-                } placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-800 transition-colors duration-200`}
+                } placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-800 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
                 placeholder="name@gmail.com"
                 value={email}
                 onChange={handleEmailChange}
@@ -210,9 +222,10 @@ function Signup() {
                 name="password"
                 type="password"
                 required
+                disabled={isRedirecting}
                 className={`appearance-none relative block w-full px-3 py-2 border ${
                   passwordError ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'
-                } placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-800 transition-colors duration-200`}
+                } placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-800 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed`}
                 placeholder="Enter password"
                 value={password}
                 onChange={handlePasswordChange}
@@ -261,7 +274,8 @@ function Signup() {
                 name="confirm-password"
                 type="password"
                 required
-                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-800 transition-colors duration-200"
+                disabled={isRedirecting}
+                className="appearance-none relative block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 dark:bg-gray-800 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 placeholder="Confirm your password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
@@ -279,7 +293,16 @@ function Signup() {
           {/* Success Message */}
           {success && (
             <div className="rounded-md bg-green-50 dark:bg-green-900/20 p-4 border border-green-200 dark:border-green-800">
-              <p className="text-sm text-green-800 dark:text-green-400">{success}</p>
+              <div className="flex items-center">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-green-800 dark:text-green-400">{success}</p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -287,9 +310,10 @@ function Signup() {
           <div>
             <button
               type="submit"
-              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
+              disabled={isRedirecting}
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Sign up
+              {isRedirecting ? 'Redirecting...' : 'Sign up'}
             </button>
           </div>
 
